@@ -1,55 +1,58 @@
-import warnings, os, yfinance as yf
+import warnings, os, yfinance as yf, requests, feedparser
 from datetime import datetime, timedelta
 import telegram, asyncio
 
 warnings.filterwarnings("ignore", category=UserWarning)
 TOKEN, CHAT_ID = os.environ.get("TOKEN"), os.environ.get("CHAT_ID")
 
+# 종목 및 지수 정의
 MY_KOR = {"기아": "000270.KS", "두산로보틱스": "454910.KS", "로보스타": "090360.KQ", "오스테오닉": "226400.KQ"}
 MY_USA = {"QQQM": "QQQM", "SPYM": "SPYM"}
-INDEXES = {"코스피": "^KS11", "코스닥": "^KQ11", "다우": "^DJI", "나스닥": "^IXIC", "S&P500": "^GSPC"}
-MACRO = {"환율": "KRW=X", "국채10년": "^TNX"}
+INDEXES = {"코스피": "^KS11", "코스닥": "^KQ11", "다우존스": "^DJI", "나스닥": "^IXIC", "나스닥100": "^NDX", "S&P500": "^GSPC"}
+MACRO = {"환율(원/달러)": "KRW=X", "미국 10년물 국채금리": "^TNX"}
 
 def get_data(ticker):
     try:
-        # period="1d"로 변경하여 당일 데이터 위주로 수집
-        ticker_obj = yf.Ticker(ticker)
-        s = ticker_obj.history(period="1d") 
+        # 실시간에 가장 가까운 최신 호가 데이터 수집
+        s = yf.Ticker(ticker).history(period="1d", interval="1m")
         if s.empty: return None, 0
         curr = s['Close'].iloc[-1]
-        prev = ticker_obj.history(period="5d")['Close'].iloc[-2] # 전일 종가 비교
+        prev = yf.Ticker(ticker).history(period="5d")['Close'].iloc[-2]
         return curr, ((curr - prev) / prev) * 100
     except: return None, 0
 
 def get_market_news():
+    # 구글 뉴스 RSS를 통해 시장 전반의 주요 이슈 수집
     try:
-        # 뉴스 데이터를 가져올 때 시간을 조금 더 여유롭게 줌
-        news = yf.Ticker("QQQM").news
-        if not news: return "현재 불러올 뉴스가 없습니다."
-        return "\n".join([f"• {n['title']}" for n in news[:3]])
-    except: return "뉴스 수집 실패"
+        url = "https://news.google.com/rss/headlines/section/topic/BUSINESS?hl=ko&gl=KR&ceid=KR:ko"
+        feed = feedparser.parse(url)
+        return "\n".join([f"• {item.title}" for item in feed.entries[:4]])
+    except: return "• 시장 이슈 수집 실패"
 
 def get_market_data():
     now = datetime.now() + timedelta(hours=9)
     hour = now.hour
     is_kor = 9 <= hour < 16
     
-    msg = f"📈 [주식 비서 리포트] ({now.strftime('%H:%M')} KST)\n\n"
+    msg = f"🕒 [{now.strftime('%H:%M')} 시장 리포트]\n\n"
     
-    # 지표 및 지수
-    msg += "🌍 [매크로 및 주요 지수]\n"
-    for n, t in {**MACRO, **INDEXES}.items():
+    msg += "💰 환율 & 국채\n"
+    for n, t in MACRO.items():
         v, _ = get_data(t)
         if v: msg += f"- {n}: {v:,.2f}\n"
-
-    # 보유 종목
+        
+    msg += "\n📊 주요지수\n"
+    for n, t in INDEXES.items():
+        v, c = get_data(t)
+        if v: msg += f"- {n}: {v:,.0f} ({c:+.2f}%)\n"
+        
+    msg += f"\n{'🇰🇷' if is_kor else '🇺🇸'} 시간별 증시 보유종목\n"
     target = MY_KOR if is_kor else MY_USA
-    msg += f"\n{'🇰🇷 [한국장]' if is_kor else '🇺🇸 [미국장]'} 보유종목\n"
     for n, t in target.items():
         v, c = get_data(t)
         if v: msg += f"- {n}: {'원' if is_kor else '$'}{v:,.2f} ({c:+.2f}%)\n"
         
-    msg += "\n📰 [시장 이슈]\n" + get_market_news()
+    msg += "\n📰 시장 이슈\n" + get_market_news()
     return msg
 
 async def main():
