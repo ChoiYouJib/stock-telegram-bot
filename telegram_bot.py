@@ -39,12 +39,18 @@ def get_market_status():
 def get_data(ticker):
     try:
         t = yf.Ticker(ticker)
-        df = t.history(period="2d")
+        # period를 5d(5일)로 늘려 데이터가 없는 날이 있더라도 최근 값을 확실히 잡도록 함
+        df = t.history(period="5d")
         if df.empty: return None, 0
-        curr = df['Close'].iloc[-1]
-        prev = df['Close'].iloc[-2]
+        
+        # 유효한 마지막 데이터 가져오기
+        curr = df['Close'].dropna().iloc[-1]
+        prev = df['Close'].dropna().iloc[-2]
+        
         return curr, ((curr - prev) / prev) * 100
-    except: return None, 0
+    except Exception as e:
+        # 오류가 나면 None을 반환하여 리스트에서 제외
+        return None, 0
 
 def get_market_data():
     now = datetime.now() + timedelta(hours=9)
@@ -53,7 +59,7 @@ def get_market_data():
     msg = f"🕒 [{now.strftime('%H:%M')} 시장 리포트]\n"
     msg += f"🇰🇷 한국장: {kor_stat} | 🇺🇸 미국장: {usa_stat}\n\n"
     
-    msg += "💰 경제 핵심 지표 (환율 & 10년채)\n"
+    msg += "💰 환율 & 10년채\n"
     for n, t in ECONOMIC_INDICATORS.items():
         v, c = get_data(t)
         if v: msg += f"- {n}: {v:,.2f} ({c:+.2f}%)\n"
