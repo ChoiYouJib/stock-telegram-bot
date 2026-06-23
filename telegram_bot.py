@@ -1,6 +1,11 @@
-import warnings, os, yfinance as yf, feedparser
+import warnings
+import os
+import yfinance as yf
+import requests
+import feedparser
+import telegram
+import asyncio
 from datetime import datetime, timedelta
-import telegram, asyncio
 
 warnings.filterwarnings("ignore", category=UserWarning)
 TOKEN, CHAT_ID = os.environ.get("TOKEN"), os.environ.get("CHAT_ID")
