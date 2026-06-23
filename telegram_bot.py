@@ -5,52 +5,37 @@ import telegram, asyncio
 warnings.filterwarnings("ignore", category=UserWarning)
 TOKEN, CHAT_ID = os.environ.get("TOKEN"), os.environ.get("CHAT_ID")
 
-# 데이터 정의
+# 종목 및 지수 정의
 MY_KOR = {"기아": "000270.KS", "두산로보틱스": "454910.KS", "로보스타": "090360.KQ", "오스테오닉": "226400.KQ"}
 MY_USA = {"QQQM": "QQQM", "SPYM": "SPYM"}
 INDEXES = {"코스피": "^KS11", "코스닥": "^KQ11", "다우존스": "^DJI", "나스닥": "^IXIC", "나스닥100": "^NDX", "S&P500": "^GSPC"}
+ECONOMIC_INDICATORS = {"환율(원/달러)": "KRW=X", "미국 10년채 금리": "^TNX"}
 
-# 경제 지표 명칭 변경
-ECONOMIC_INDICATORS = {"환율(원/달러)": "KRW=X", "10년채 금리": "^TNX"}
-
-# 휴장일 데이터 (YYYY-MM-DD)
 HOLIDAYS_KOR = ["2026-06-06"] 
 HOLIDAYS_USA = ["2026-07-03"]
 MONTHLY_HOLIDAYS = {6: "06일(한국:현충일)", 7: "03일(미국:독립기념일)", 8: "15일(한국:광복절)"}
 
+def check_risk(n, v):
+    if "환율" in n and v >= 1400: return " [⚠️ 위험: 고환율]"
+    if "10년채 금리" in n and v >= 4.5: return " [⚠️ 위험: 고금리]"
+    return ""
+
 def get_market_status():
     now = datetime.now() + timedelta(hours=9)
     today = now.strftime('%Y-%m-%d')
-    
-    # 한국장 상태 판별
-    if today in HOLIDAYS_KOR: kor_stat = "휴장"
-    elif now.hour < 9: kor_stat = "장 시작 전"
-    elif 9 <= now.hour < 15: kor_stat = "개장 중"
-    else: kor_stat = "장 종료"
-    
-    # 미국장 상태 판별
-    if today in HOLIDAYS_USA: usa_stat = "휴장"
-    elif 5 <= now.hour < 22: usa_stat = "장 시작 전"
-    elif 22 <= now.hour or now.hour < 5: usa_stat = "개장 중"
-    else: usa_stat = "장 종료"
-    
+    kor_stat = "휴장" if today in HOLIDAYS_KOR else ("개장 중" if 9 <= now.hour < 15 else "장 종료")
+    usa_stat = "휴장" if today in HOLIDAYS_USA else ("개장 중" if (22 <= now.hour or now.hour < 5) else "장 시작 전")
     return kor_stat, usa_stat
 
 def get_data(ticker):
     try:
         t = yf.Ticker(ticker)
-        # period를 5d(5일)로 늘려 데이터가 없는 날이 있더라도 최근 값을 확실히 잡도록 함
         df = t.history(period="5d")
         if df.empty: return None, 0
-        
-        # 유효한 마지막 데이터 가져오기
         curr = df['Close'].dropna().iloc[-1]
         prev = df['Close'].dropna().iloc[-2]
-        
         return curr, ((curr - prev) / prev) * 100
-    except Exception as e:
-        # 오류가 나면 None을 반환하여 리스트에서 제외
-        return None, 0
+    except: return None, 0
 
 def get_market_data():
     now = datetime.now() + timedelta(hours=9)
@@ -62,7 +47,7 @@ def get_market_data():
     msg += "💰 환율 & 10년채\n"
     for n, t in ECONOMIC_INDICATORS.items():
         v, c = get_data(t)
-        if v: msg += f"- {n}: {v:,.2f} ({c:+.2f}%)\n"
+        if v: msg += f"- {n}: {v:,.2f} ({c:+.2f}%){check_risk(n, v)}\n"
         
     msg += "\n📊 주요 지수 (지연 20분)\n"
     for n, t in INDEXES.items():
