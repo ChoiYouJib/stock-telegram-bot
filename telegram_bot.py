@@ -11,8 +11,11 @@ from datetime import datetime
 warnings.filterwarnings("ignore", category=UserWarning)
 
 # 설정
-TOKEN = "8939072148:AAGGQa2ygvC1mFuZpdHPzab94MmWy0d3bcs"
-CHAT_ID = "8840190327"
+import os
+
+# 코드에 직접 적지 않고 깃허브의 비밀 설정을 불러옵니다.
+TOKEN = os.environ.get("TOKEN")
+CHAT_ID = os.environ.get("CHAT_ID")
 
 MY_KOR = {"기아": "000270.KS", "두산로보틱스": "454910.KS", "로보스타": "090360.KQ", "오스테오닉": "226400.KQ"}
 MY_USA = {"QQQM": "QQQM", "SPYM": "SPYM"}
