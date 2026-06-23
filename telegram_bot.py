@@ -11,9 +11,20 @@ MY_USA = {"QQQM": "QQQM", "SPYM": "SPYM"}
 INDEXES = {"코스피": "^KS11", "코스닥": "^KQ11", "다우존스": "^DJI", "나스닥": "^IXIC", "나스닥100": "^NDX", "S&P500": "^GSPC"}
 MACRO = {"환율": "KRW=X", "국채10년": "^TNX"}
 
+# 휴장일 데이터베이스 (날짜 형식: YYYY-MM-DD)
+# 실제 공휴일과 증시 휴장일은 다를 수 있으니 증권사 일정에 맞춰 업데이트하세요.
+HOLIDAYS_KOR = ["2026-06-06"] 
+HOLIDAYS_USA = ["2026-07-03"]
+
+def get_market_status():
+    today = datetime.now().strftime('%Y-%m-%d')
+    # 한국장/미국장 휴장 여부 확인
+    kor_status = "휴장" if today in HOLIDAYS_KOR else "개장/운영"
+    usa_status = "휴장" if today in HOLIDAYS_USA else "개장/운영"
+    return kor_status, usa_status
+
 def get_data(ticker):
     try:
-        # include_prepost=True를 통해 정규장 외(프리/애프터) 데이터까지 반영
         ticker_obj = yf.Ticker(ticker)
         s = ticker_obj.history(period="1d", include_prepost=True)
         if s.empty: return None, 0
@@ -37,9 +48,11 @@ def get_market_news():
 
 def get_market_data():
     now = datetime.now() + timedelta(hours=9)
+    kor_stat, usa_stat = get_market_status()
     is_kor = 9 <= now.hour < 16
     
     msg = f"🕒 [{now.strftime('%H:%M')} 시장 리포트]\n"
+    msg += f"🇰🇷 한국장: {kor_stat} | 🇺🇸 미국장: {usa_stat}\n"
     msg += "(데이터 기준: 종가 및 정규장 외 포함 최신가)\n\n"
     
     msg += "💰 환율&국채\n"
@@ -52,7 +65,7 @@ def get_market_data():
         v, c = get_data(t)
         if v: msg += f"- {n}: {v:,.0f} ({c:+.2f}%)\n"
         
-    msg += f"\n{'🇰🇷' if is_kor else '🇺🇸'} 시간별 증시 보유종목\n"
+    msg += f"\n{'🇰🇷' if is_kor else '🇺🇸'} 보유종목\n"
     target = MY_KOR if is_kor else MY_USA
     for n, t in target.items():
         v, c = get_data(t)
