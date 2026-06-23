@@ -1,0 +1,26 @@
+name: Daily Stock Bot
+on:
+  schedule:
+    - cron: '0 0 * * *'    # 한국 09:00 (한국 장 시작)
+    - cron: '30 2 * * *'   # 한국 11:30 (한국 장중)
+    - cron: '30 6 * * *'   # 한국 15:30 (한국 장 마감)
+    - cron: '0 13 * * *'   # 한국 22:00 (미국 장 시작)
+    - cron: '0 22 * * *'   # 한국 07:00 (미국 장 마감)
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install python-telegram-bot yfinance pandas_market_calendars requests beautifulsoup4
+      - name: Run bot
+        env:
+          TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
+          CHAT_ID: ${{ secrets.CHAT_ID }}
+        run: python telegram_bot.py
